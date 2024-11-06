@@ -4,24 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mapa de Soria</title>
- 
+
   <!-- Hoja de estilos de Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
 
   <style>
-    #map { height: 800px; width: 80%; }
+    #map { height: 800px; width: 80%; margin-top: 20px; }
     #coordinates {
-      background-color: rgba(255, 255, 255, 0.8);
+      background-color: rgba(255, 255, 255, 0.9);
       border: 1px solid #ccc;
       padding: 10px;
-      position: fixed;
-      bottom: 120px;
-      left: 10px;
-      z-index: 1000;
+      margin-bottom: 10px;
+      display: inline-block;
     }
-    #copyButton {
-      margin-top: 10px;
+    .copyButton {
+      margin-top: 5px;
       cursor: pointer;
       padding: 5px 10px;
       background-color: rgb(53, 9, 248);
@@ -38,22 +36,22 @@
   <!-- Proj4js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.7.4/proj4.js"></script>
   <script src="https://unpkg.com/leaflet-plugins/layer/tile/Google.js"></script>
-  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"></script>
   <script type="text/javascript" src="provincia.js"></script>
   <script type="text/javascript" src="municipios.js"></script>
-
 </head>
 <body>
   <h1>Mapa de Soria</h1>
-  <div id="map"></div>
- 
-  <!-- Cuadro para mostrar las coordenadas -->
+
+  <!-- Cuadro para mostrar solo las coordenadas en ETRS89 UTM -->
   <div id="coordinates">
     <p><strong>Coordenadas del ratón:</strong></p>
-    <p id="wgs">WGS 84: </p>
-    <p id="etrs">ETRS89 UTM: </p>
-    <button id="copyButton">copiar coordenadas</button> <!-- Botón para poder copiar las coord -->
+    <p id="etrs">X=<span id="xCoord"></span>, Y=<span id="yCoord"></span></p>
+    <button class="copyButton" id="copyXButton">Copiar X</button>
+    <button class="copyButton" id="copyYButton">Copiar Y</button>
   </div>
+
+  <div id="map"></div>
 
   <script>
     $(document).ready(function() {
@@ -70,7 +68,7 @@
       const zoom = parseInt(getQueryParam('zoom')) || 9;
 
       let map;
-      let frozenCoords = false; //para congelar y descongelar las coordenadas
+      let frozenCoords = false;
 
       if (!isNaN(x) && !isNaN(y)) {
         var wgsCoords = proj4('+proj=utm +zone=30 +datum=ETRS89 +units=m +no_defs', 'EPSG:4326', [x, y]);
@@ -142,7 +140,7 @@
           .catch(error => console.error('Error en GetFeatureInfo:', error));
       });
 
-// Mapas base
+      // Mapas base
       var baseMaps = {
         "Callejero": callejero,
         "Google Maps": googleLayer,
@@ -151,7 +149,7 @@
         "Imagen PNOA": pnoaLayer
       };
 
-// Capas de provincia y municipios
+      // Capas de provincia y municipios
       var overlay = {
         "Provincia de Soria": L.geoJson(provincia, { style: {"color": "#EB5B00", "weight": 4, "opacity": 0.8} }).addTo(map),
         "Municipios": L.geoJson(municipios, { style: {"color": "#3182bd", "weight": 1, "opacity": 3.5} })
@@ -160,38 +158,42 @@
       L.control.layers(baseMaps, overlay, { position: 'topright' }).addTo(map);
       L.control.scale({ metric: true, imperial: false }).addTo(map);
 
-//funcion para actualizar las coordenadas
+      // Actualizar solo coordenadas ETRS89 UTM en el cuadro
       function updateCoordinates(e) {
-        if (frozenCoords) return; // Si están congeladas, no actualizar
+        if (frozenCoords) return;
         var lat = e.latlng.lat;
         var lng = e.latlng.lng;
-        $('#wgs').text(`WGS 84: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
         var etrsCoords = proj4('EPSG:4326', '+proj=utm +zone=30 +datum=ETRS89 +units=m +no_defs', [lng, lat]);
-        $('#etrs').text(`ETRS89 UTM: X=${etrsCoords[0].toFixed(2)}, Y=${etrsCoords[1].toFixed(2)}`);
+        
+        $('#xCoord').text(etrsCoords[0].toFixed(2));
+        $('#yCoord').text(etrsCoords[1].toFixed(2));
       }
 
       map.on('mousemove', updateCoordinates);
 
       // Alternar entre congelar y descongelar las coordenadas
       map.on('click', function(e) {
-        frozenCoords = !frozenCoords; // aquí se va alternando el estado de las coordenadas
-        if (!frozenCoords) updateCoordinates(e); // le decimos que actualice las coordenadas cuando se descongelan
+        frozenCoords = !frozenCoords;
+        if (!frozenCoords) updateCoordinates(e);
       });
 
-      $('#copyButton').on('click', function() {
-        const wgs = $('#wgs').text().replace('WGS 84: ', '');
-        const etrs = $('#etrs').text().replace('ETRS89 UTM: ', '');
-        const coordinates = `Coordenadas WGS 84: ${wgs} | ETRS89 UTM: ${etrs}`;
-
-        //Lanzar un mensaje para que se sepa que se han copiado las coordenadas bien
-        navigator.clipboard.writeText(coordinates).then(() => {
-          alert('¡Has copiado las coordendas al portapapeles!');
+      $('#copyXButton').on('click', function() {
+        const xCoord = $('#xCoord').text();
+        navigator.clipboard.writeText(`X=${xCoord}`).then(() => {
+          alert('¡Coordenada X copiada al portapapeles!');
         }).catch(err => {
           console.error('Error al copiar al portapapeles: ', err);
         });
       });
 
-      //para buscar en los parámetros de la url por dirección directamente (no funciona bien)
+      $('#copyYButton').on('click', function() {
+        const yCoord = $('#yCoord').text();
+        navigator.clipboard.writeText(`Y=${yCoord}`).then(() => {
+          alert('¡Coordenada Y copiada al portapapeles!');
+        }).catch(err => {
+          console.error('Error al copiar al portapapeles: ', err);
+        });
+      });
 
       if (address) {
         const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
